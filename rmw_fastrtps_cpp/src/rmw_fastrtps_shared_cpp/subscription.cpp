@@ -99,4 +99,14 @@ is_ignored_local_sample(
     eprosima::fastdds::rtps::iHandle2GUID(sample_info.publication_handle);
   return sample_writer_guid.guidPrefix == info->data_reader_->guid().guidPrefix;
 }
+
+bool
+is_direct_serialized_take(
+  const rmw_subscription_t * subscription,
+  const eprosima::fastdds::dds::DataReader * reader)
+{
+  // Ignored local samples and overwritten data-sharing samples are dropped after deserializing
+  return !subscription->options.ignore_local_publications &&
+         reader->get_qos().data_sharing().kind() == eprosima::fastdds::dds::OFF;
+}
 }  // namespace rmw_fastrtps_shared_cpp

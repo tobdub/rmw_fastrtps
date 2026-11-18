@@ -278,11 +278,14 @@ _take_serialized_message(
   RCUTILS_CHECK_FOR_NULL_WITH_MSG(info, "custom subscriber info is null", return RMW_RET_ERROR);
 
   eprosima::fastcdr::FastBuffer buffer;
+  SerializedMessageTarget target{serialized_message, RMW_RET_OK};
+  const bool direct = is_direct_serialized_take(subscription, info->data_reader_);
 
   rmw_fastrtps_shared_cpp::SerializedData data;
-  data.type = FASTDDS_SERIALIZED_DATA_TYPE_CDR_BUFFER;
-  data.data = &buffer;
-  data.impl = nullptr;  // not used when type is FASTDDS_SERIALIZED_DATA_TYPE_CDR_BUFFER
+  data.type = direct ?
+    FASTDDS_SERIALIZED_DATA_TYPE_RMW_SERIALIZED_MESSAGE : FASTDDS_SERIALIZED_DATA_TYPE_CDR_BUFFER;
+  data.data = direct ? static_cast<void *>(&target) : static_cast<void *>(&buffer);
+  data.impl = nullptr;  // not used by either type
 
   eprosima::fastdds::dds::StackAllocatedSequence<void *, 1> data_values;
   const_cast<void **>(data_values.buffer())[0] = &data;
@@ -296,19 +299,20 @@ _take_serialized_message(
         info_seq.length(0);
       });
 
+    if (target.ret != RMW_RET_OK) {
+      return target.ret;  // Error message already set
+    }
     if (info_seq[0].valid_data) {
       if (is_ignored_local_sample(subscription, info, info_seq[0])) {
         continue;
       }
-      auto buffer_size = static_cast<size_t>(buffer.getBufferSize());
-      if (serialized_message->buffer_capacity < buffer_size) {
-        auto ret = rmw_serialized_message_resize(serialized_message, buffer_size);
+      if (!direct) {
+        auto ret = copy_to_serialized_message(
+          serialized_message, buffer.getBuffer(), buffer.getBufferSize());
         if (ret != RMW_RET_OK) {
           return ret;           // Error message already set
         }
       }
-      serialized_message->buffer_length = buffer_size;
-      memcpy(serialized_message->buffer, buffer.getBuffer(), serialized_message->buffer_length);
 
       if (message_info) {
         _assign_message_info(identifier, message_info, &info_seq[0]);

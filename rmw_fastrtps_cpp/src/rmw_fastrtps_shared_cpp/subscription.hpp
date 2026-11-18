@@ -46,6 +46,13 @@ is_ignored_local_sample(
   const CustomSubscriberInfo * info,
   const eprosima::fastdds::dds::SampleInfo & sample_info);
 
+/// Whether a serialized take can copy straight into the caller's message, which must stay
+/// unchanged if nothing is taken.
+bool
+is_direct_serialized_take(
+  const rmw_subscription_t * subscription,
+  const eprosima::fastdds::dds::DataReader * reader);
+
 }  // namespace rmw_fastrtps_shared_cpp
 
 #endif  // RMW_FASTRTPS_SHARED_CPP__SUBSCRIPTION_HPP_

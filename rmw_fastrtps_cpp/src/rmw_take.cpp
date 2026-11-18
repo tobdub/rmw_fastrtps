@@ -323,9 +323,14 @@ take_buffer_aware_serialized(
   }
 
   eprosima::fastcdr::FastBuffer receive_buffer;
+  rmw_fastrtps_shared_cpp::SerializedMessageTarget target{serialized_message, RMW_RET_OK};
+  const bool direct =
+    rmw_fastrtps_shared_cpp::is_direct_serialized_take(subscription, info->cpu_data_reader_);
   rmw_fastrtps_shared_cpp::SerializedData data;
-  data.type = rmw_fastrtps_shared_cpp::FASTDDS_SERIALIZED_DATA_TYPE_CDR_BUFFER;
-  data.data = &receive_buffer;
+  data.type = direct ?
+    rmw_fastrtps_shared_cpp::FASTDDS_SERIALIZED_DATA_TYPE_RMW_SERIALIZED_MESSAGE :
+    rmw_fastrtps_shared_cpp::FASTDDS_SERIALIZED_DATA_TYPE_CDR_BUFFER;
+  data.data = direct ? static_cast<void *>(&target) : static_cast<void *>(&receive_buffer);
   data.impl = nullptr;
 
   eprosima::fastdds::dds::StackAllocatedSequence<void *, 1> data_values;
@@ -344,6 +349,9 @@ take_buffer_aware_serialized(
     {
       return reject_accelerated_serialized_sample(subscription, info);
     }
+    if (target.ret != RMW_RET_OK) {
+      return target.ret;
+    }
     if (info_seq[0].valid_data &&
       !rmw_fastrtps_shared_cpp::is_ignored_local_sample(subscription, info, info_seq[0]))
     {
@@ -353,15 +361,13 @@ take_buffer_aware_serialized(
     info_seq.length(0);
   }
 
-  auto buffer_size = static_cast<size_t>(receive_buffer.getBufferSize());
-  if (serialized_message->buffer_capacity < buffer_size) {
-    auto rret = rmw_serialized_message_resize(serialized_message, buffer_size);
+  if (!direct) {
+    auto rret = rmw_fastrtps_shared_cpp::copy_to_serialized_message(
+      serialized_message, receive_buffer.getBuffer(), receive_buffer.getBufferSize());
     if (rret != RMW_RET_OK) {
       return rret;
     }
   }
-  serialized_message->buffer_length = buffer_size;
-  std::memcpy(serialized_message->buffer, receive_buffer.getBuffer(), buffer_size);
 
   if (message_info) {
     rmw_fastrtps_shared_cpp::_assign_message_info(

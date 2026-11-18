@@ -208,6 +208,14 @@ bool TypeSupport::deserialize(
         return true;
       }
 
+    case FASTDDS_SERIALIZED_DATA_TYPE_RMW_SERIALIZED_MESSAGE:
+      {
+        auto target = static_cast<SerializedMessageTarget *>(ser_data->data);
+        target->ret = copy_to_serialized_message(target->message, payload.data, payload.length);
+        // Keep the sample even on failure, so that the take reports the error
+        return true;
+      }
+
     case FASTDDS_SERIALIZED_DATA_TYPE_DYNAMIC_MESSAGE:
       {
         auto m_type = std::make_shared<eprosima::fastdds::dds::DynamicPubSubType>();
@@ -237,6 +245,8 @@ uint32_t TypeSupport::calculate_serialized_size(
   if (ser_data->type == FASTDDS_SERIALIZED_DATA_TYPE_CDR_BUFFER) {
     auto ser = static_cast<eprosima::fastcdr::Cdr *>(ser_data->data);
     ser_size = static_cast<uint32_t>(ser->get_serialized_data_length());
+  } else if (ser_data->type == FASTDDS_SERIALIZED_DATA_TYPE_RMW_SERIALIZED_MESSAGE) {
+    assert(false && "only used to take messages");
   } else {
     ser_size = static_cast<uint32_t>(this->getEstimatedSerializedSize(
         ser_data->data,

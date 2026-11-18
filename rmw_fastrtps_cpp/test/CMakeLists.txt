@@ -20,6 +20,7 @@ target_link_libraries(test_take_serialized
   rcutils::rcutils
   rmw::rmw
   rmw_fastrtps_cpp
+  rosidl_runtime_c::rosidl_runtime_c
   test_msgs::test_msgs
 )
 

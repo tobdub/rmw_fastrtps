@@ -17,6 +17,7 @@
 
 #include <cassert>
 #include <cstddef>
+#include <cstring>
 #include <string>
 #include <vector>
 
@@ -30,6 +31,9 @@
 
 #include "rcutils/logging_macros.h"
 
+#include "rmw/ret_types.h"
+#include "rmw/serialized_message.h"
+
 #include "rosidl_runtime_c/message_type_support_struct.h"
 
 #include "rmw_fastrtps_cpp/visibility_control.h"
@@ -41,7 +45,9 @@ enum SerializedDataType
 {
   FASTDDS_SERIALIZED_DATA_TYPE_CDR_BUFFER,
   FASTDDS_SERIALIZED_DATA_TYPE_DYNAMIC_MESSAGE,
-  FASTDDS_SERIALIZED_DATA_TYPE_ROS_MESSAGE
+  FASTDDS_SERIALIZED_DATA_TYPE_ROS_MESSAGE,
+  // Take only: data points to a SerializedMessageTarget
+  FASTDDS_SERIALIZED_DATA_TYPE_RMW_SERIALIZED_MESSAGE
 };
 
 // Publishers write method will receive a pointer to this struct
@@ -51,6 +57,27 @@ struct SerializedData
   void * data;
   const void * impl;  // RMW implementation specific data
 };
+
+struct SerializedMessageTarget
+{
+  rmw_serialized_message_t * message;
+  rmw_ret_t ret;
+};
+
+inline rmw_ret_t
+copy_to_serialized_message(
+  rmw_serialized_message_t * message, const void * data, size_t length)
+{
+  if (message->buffer_capacity < length) {
+    rmw_ret_t ret = rmw_serialized_message_resize(message, length);
+    if (ret != RMW_RET_OK) {
+      return ret;  // Error message already set
+    }
+  }
+  memcpy(message->buffer, data, length);
+  message->buffer_length = length;
+  return RMW_RET_OK;
+}
 
 class TypeSupport : public eprosima::fastdds::dds::TopicDataType
 {
